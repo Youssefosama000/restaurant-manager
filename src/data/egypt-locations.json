@@ -1,0 +1,173 @@
+{
+  "cities": [
+    {
+      "id": "cairo",
+      "name": "Cairo",
+      "lat": 30.0444,
+      "lng": 31.2357,
+      "areas": [
+        { "name": "Maadi",                    "lat": 29.9661, "lng": 31.2697 },
+        { "name": "Zamalek",                  "lat": 30.0626, "lng": 31.2197 },
+        { "name": "Heliopolis",               "lat": 30.0870, "lng": 31.3220 },
+        { "name": "Nasr City",                "lat": 30.0627, "lng": 31.3400 },
+        { "name": "New Cairo",                "lat": 30.0131, "lng": 31.4961 },
+        { "name": "Dokki",                    "lat": 30.0393, "lng": 31.2118 },
+        { "name": "Mohandessin",              "lat": 30.0569, "lng": 31.2006 },
+        { "name": "Agouza",                   "lat": 30.0596, "lng": 31.2148 },
+        { "name": "Garden City",              "lat": 30.0380, "lng": 31.2302 },
+        { "name": "Downtown Cairo",           "lat": 30.0476, "lng": 31.2367 },
+        { "name": "Tahrir",                   "lat": 30.0444, "lng": 31.2357 },
+        { "name": "Abdeen",                   "lat": 30.0417, "lng": 31.2477 },
+        { "name": "Bab El-Louq",              "lat": 30.0448, "lng": 31.2394 },
+        { "name": "Bulaq",                    "lat": 30.0582, "lng": 31.2333 },
+        { "name": "Rod El-Farag",             "lat": 30.0721, "lng": 31.2441 },
+        { "name": "Shubra",                   "lat": 30.0869, "lng": 31.2485 },
+        { "name": "Ain Shams",                "lat": 30.1032, "lng": 31.3155 },
+        { "name": "Matariya",                 "lat": 30.1213, "lng": 31.3122 },
+        { "name": "Mokattam",                 "lat": 30.0098, "lng": 31.2853 },
+        { "name": "El-Rehab City",            "lat": 30.0586, "lng": 31.4942 },
+        { "name": "Tagamoa El-Khamis",        "lat": 30.0225, "lng": 31.4529 },
+        { "name": "New Administrative Capital","lat": 30.0131, "lng": 31.7234 },
+        { "name": "Obour City",               "lat": 30.2192, "lng": 31.4741 },
+        { "name": "Shorouk City",             "lat": 30.1336, "lng": 31.6118 }
+      ]
+    },
+    {
+      "id": "giza",
+      "name": "Giza",
+      "lat": 30.0131,
+      "lng": 31.2089,
+      "areas": [
+        { "name": "Pyramids",        "lat": 29.9773, "lng": 31.1325 },
+        { "name": "Faisal",          "lat": 29.9929, "lng": 31.1556 },
+        { "name": "El-Haram",        "lat": 29.9877, "lng": 31.1498 },
+        { "name": "El-Omraneya",     "lat": 30.0006, "lng": 31.1724 },
+        { "name": "Imbaba",          "lat": 30.0794, "lng": 31.2092 },
+        { "name": "El-Warraq",       "lat": 30.1007, "lng": 31.2041 },
+        { "name": "Hawamdeya",       "lat": 29.8910, "lng": 31.2248 },
+        { "name": "Badrashin",       "lat": 29.8503, "lng": 31.2416 },
+        { "name": "Sakkara",         "lat": 29.8714, "lng": 31.2165 },
+        { "name": "Sheikh Zayed",    "lat": 30.0576, "lng": 30.9740 },
+        { "name": "6th of October",  "lat": 29.9301, "lng": 30.9368 },
+        { "name": "El-Mansoureya",   "lat": 30.0220, "lng": 31.2028 }
+      ]
+    },
+    {
+      "id": "alexandria",
+      "name": "Alexandria",
+      "lat": 31.2001,
+      "lng": 29.9187,
+      "areas": [
+        { "name": "El-Agami",        "lat": 31.0077, "lng": 29.7769 },
+        { "name": "Amreya",          "lat": 31.0383, "lng": 29.8369 },
+        { "name": "Borg El-Arab",    "lat": 30.9198, "lng": 29.5768 },
+        { "name": "El-Mandara",      "lat": 31.2832, "lng": 30.0183 },
+        { "name": "El-Montaza",      "lat": 31.2961, "lng": 30.0268 },
+        { "name": "Bab Sharq",       "lat": 31.2027, "lng": 29.9175 },
+        { "name": "El-Raml",         "lat": 31.2028, "lng": 29.9185 },
+        { "name": "El-Shatby",       "lat": 31.2097, "lng": 29.9081 },
+        { "name": "El-Ibrahimiyya",  "lat": 31.2067, "lng": 29.9175 },
+        { "name": "El-Anfushi",      "lat": 31.2122, "lng": 29.8931 },
+        { "name": "Moharam Bek",     "lat": 31.1917, "lng": 29.9231 },
+        { "name": "Smouha",          "lat": 31.1935, "lng": 29.9525 },
+        { "name": "El-Loran",        "lat": 31.2140, "lng": 29.9394 },
+        { "name": "Fleming",         "lat": 31.2303, "lng": 29.9634 },
+        { "name": "Sidi Bishr",      "lat": 31.2609, "lng": 29.9940 },
+        { "name": "Miami",           "lat": 31.2718, "lng": 30.0042 },
+        { "name": "El-Asafra",       "lat": 31.2798, "lng": 30.0116 },
+        { "name": "El-Nozha",        "lat": 31.2193, "lng": 29.9537 },
+        { "name": "Maamoura",        "lat": 31.3047, "lng": 30.0438 }
+      ]
+    },
+    {
+      "id": "sharm-el-sheikh",
+      "name": "Sharm El-Sheikh",
+      "lat": 27.9158,
+      "lng": 34.3300,
+      "areas": [
+        { "name": "Naama Bay",  "lat": 27.9215, "lng": 34.3300 },
+        { "name": "Hadaba",     "lat": 27.8966, "lng": 34.3204 },
+        { "name": "Sharks Bay", "lat": 27.9468, "lng": 34.3501 },
+        { "name": "El-Montaza", "lat": 27.9310, "lng": 34.3414 },
+        { "name": "El-Nabq",    "lat": 27.9701, "lng": 34.3782 },
+        { "name": "Old Sharm",  "lat": 27.8641, "lng": 34.2948 },
+        { "name": "Ras Um Sid", "lat": 27.8853, "lng": 34.3192 }
+      ]
+    },
+    {
+      "id": "hurghada",
+      "name": "Hurghada",
+      "lat": 27.2579,
+      "lng": 33.8116,
+      "areas": [
+        { "name": "El-Dahar",          "lat": 27.2759, "lng": 33.8029 },
+        { "name": "El-Sekalla",        "lat": 27.2383, "lng": 33.8365 },
+        { "name": "Hadabet El-Oued",   "lat": 27.2579, "lng": 33.8116 },
+        { "name": "Intercontinental",  "lat": 27.2151, "lng": 33.8603 },
+        { "name": "El-Mubarak",        "lat": 27.2579, "lng": 33.8116 },
+        { "name": "El-Ahyaa",          "lat": 27.3301, "lng": 33.7677 },
+        { "name": "El-Gouna",          "lat": 27.3949, "lng": 33.6776 }
+      ]
+    },
+    {
+      "id": "mansoura",
+      "name": "Mansoura",
+      "lat": 31.0364,
+      "lng": 31.3807,
+      "areas": [
+        { "name": "El-Mansoura City Center", "lat": 31.0364, "lng": 31.3807 },
+        { "name": "Talkha",                  "lat": 31.0669, "lng": 31.3697 },
+        { "name": "Mit Salsil",              "lat": 31.0889, "lng": 31.4118 },
+        { "name": "El-Sinbillawein",         "lat": 30.8726, "lng": 31.5155 }
+      ]
+    },
+    {
+      "id": "tanta",
+      "name": "Tanta",
+      "lat": 30.7865,
+      "lng": 31.0004,
+      "areas": [
+        { "name": "Tanta City Center", "lat": 30.7865, "lng": 31.0004 },
+        { "name": "El-Mahalla",        "lat": 30.9726, "lng": 31.1627 },
+        { "name": "Kafr El-Zayat",     "lat": 30.8237, "lng": 30.8197 },
+        { "name": "El-Kama",           "lat": 30.7430, "lng": 31.0673 }
+      ]
+    },
+    {
+      "id": "ismailia",
+      "name": "Ismailia",
+      "lat": 30.5965,
+      "lng": 32.2715,
+      "areas": [
+        { "name": "Ismailia City",    "lat": 30.5965, "lng": 32.2715 },
+        { "name": "El-Qantara",       "lat": 30.8556, "lng": 32.3308 },
+        { "name": "El-Tal El-Kabir",  "lat": 30.5688, "lng": 32.0199 },
+        { "name": "Fayed",            "lat": 30.3154, "lng": 32.3530 }
+      ]
+    },
+    {
+      "id": "luxor",
+      "name": "Luxor",
+      "lat": 25.6872,
+      "lng": 32.6396,
+      "areas": [
+        { "name": "Karnak",           "lat": 25.7188, "lng": 32.6572 },
+        { "name": "Luxor West Bank",  "lat": 25.7311, "lng": 32.6009 },
+        { "name": "New Gurna",        "lat": 25.7241, "lng": 32.6068 },
+        { "name": "El-Taref",         "lat": 25.6700, "lng": 32.6501 }
+      ]
+    },
+    {
+      "id": "aswan",
+      "name": "Aswan",
+      "lat": 24.0889,
+      "lng": 32.8998,
+      "areas": [
+        { "name": "Aswan City Center", "lat": 24.0889, "lng": 32.8998 },
+        { "name": "El-Shallal",        "lat": 24.0418, "lng": 32.8788 },
+        { "name": "Koom Ombo",         "lat": 24.4712, "lng": 32.9477 },
+        { "name": "Edfu",              "lat": 24.9793, "lng": 32.8737 }
+      ]
+    }
+  ]
+}

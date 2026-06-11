@@ -1,0 +1,128 @@
+import { useState, useEffect, useCallback } from "react";
+import { X, Search, Loader2 } from "lucide-react";
+import { searchFood, searchExternalFood, type FoodItem } from "../../api/food";
+
+interface Props {
+  onClose: () => void;
+  onAdd: (items: FoodItem[]) => void;
+}
+
+export default function AddIngredientsModal({ onClose, onAdd }: Props) {
+  const [search,   setSearch]   = useState("");
+  const [results,  setResults]  = useState<FoodItem[]>([]);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [loading,  setLoading]  = useState(false);
+  const [error,    setError]    = useState<string | null>(null);
+
+  const doSearch = useCallback(async (term: string) => {
+    if (!term.trim()) { setResults([]); return; }
+    setLoading(true);
+    setError(null);
+    try {
+      let items = await searchFood(term);
+      if (!items.length) items = await searchExternalFood(term);
+      setResults(items);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Search failed");
+      setResults([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const t = setTimeout(() => doSearch(search), 400);
+    return () => clearTimeout(t);
+  }, [search, doSearch]);
+
+  const toggle = (id: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+
+  const handleConfirm = () => {
+    onAdd(results.filter((i) => selected.has(i.id)));
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl flex flex-col max-h-[80vh]">
+
+        <div className="flex items-center justify-between px-5 pt-5 pb-4 flex-shrink-0">
+          <h2 className="text-base font-semibold text-slyce-dark">Add Ingredients</h2>
+          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-cream transition-colors">
+            <X size={16} className="text-slyce-grey" />
+          </button>
+        </div>
+
+        <div className="px-5 pb-3 flex-shrink-0">
+          <div className="flex items-center gap-2 bg-cream rounded-xl px-3 py-2.5">
+            {loading
+              ? <Loader2 size={14} className="text-green-primary animate-spin flex-shrink-0" />
+              : <Search size={14} className="text-slyce-grey flex-shrink-0" />}
+            <input
+              type="text"
+              placeholder="Search products and add ingredients…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="flex-1 bg-transparent text-xs text-slyce-dark placeholder:text-slyce-grey outline-none"
+              autoFocus
+            />
+          </div>
+          {error && <p className="text-[10px] text-red-500 mt-1 px-1">{error}</p>}
+        </div>
+
+        <div className="px-5 overflow-y-auto flex-1 space-y-1 pb-3">
+          {!loading && !search.trim() && (
+            <p className="text-xs text-slyce-grey text-center py-8">Start typing to search ingredients…</p>
+          )}
+          {!loading && search.trim() && results.length === 0 && (
+            <p className="text-xs text-slyce-grey text-center py-8">No results for "{search}"</p>
+          )}
+          {results.map((item) => {
+            const isSelected = selected.has(item.id);
+            return (
+              <div key={item.id} onClick={() => toggle(item.id)}
+                className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-colors ${
+                  isSelected ? "bg-green-primary/10 border border-green-primary/30" : "hover:bg-cream"
+                }`}
+              >
+                {item.imageUrl ? (
+                  <img src={item.imageUrl} alt={item.name} className="w-10 h-10 rounded-xl object-cover flex-shrink-0"
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                ) : (
+                  <div className="w-10 h-10 rounded-xl bg-cream flex items-center justify-center flex-shrink-0 text-lg">🥩</div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold text-slyce-dark leading-snug">{item.name}</p>
+                  <p className="text-[10px] text-slyce-grey mt-0.5">
+                    {item.caloriesPer100g} kcal/100g · P {item.protein}g · F {item.fat}g · C {item.carbs}g
+                  </p>
+                </div>
+                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
+                  isSelected ? "bg-green-primary border-green-primary" : "border-slyce-border"
+                }`}>
+                  {isSelected && (
+                    <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+                      <path d="M1 4l2.5 2.5L9 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="px-5 py-4 border-t border-slyce-border flex-shrink-0">
+          <button onClick={handleConfirm} disabled={selected.size === 0}
+            className="w-full bg-green-primary text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+            Add Selected ({selected.size})
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

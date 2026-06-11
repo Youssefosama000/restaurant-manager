@@ -1,0 +1,66 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,100..900&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: "Inter", sans-serif;
+  background-color: #FFFAF0;
+  -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  width: 100%;
+  min-height: 100vh;
+}
+
+/* ── Exact copy from Slyce-Frontend index.css ── */
+#nav {
+  position: relative;
+  clip-path: polygon(
+    0 0,
+    0 95%,
+    3% 100%,
+    6% 95%,
+    9% 100%,
+    12% 95%,
+    15% 100%,
+    18% 95%,
+    21% 100%,
+    24% 95%,
+    27% 100%,
+    30% 95%,
+    33% 100%,
+    36% 95%,
+    39% 100%,
+    42% 95%,
+    45% 100%,
+    48% 95%,
+    51% 100%,
+    54% 95%,
+    57% 100%,
+    60% 95%,
+    63% 100%,
+    66% 95%,
+    69% 100%,
+    72% 95%,
+    75% 100%,
+    78% 95%,
+    81% 100%,
+    84% 95%,
+    87% 100%,
+    90% 95%,
+    93% 100%,
+    96% 95%,
+    99% 100%,
+    100% 95%,
+    100% 0
+  );
+}
