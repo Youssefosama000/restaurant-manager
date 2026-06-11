@@ -18,7 +18,7 @@ export interface ScheduleDay {
 }
 
 export async function addBranch(payload: BranchPayload) {
-  return api.post("/v1/branches/", payload);
+  return api.post("/v1/branches", payload);
 }
 
 export async function activateBranch(branchId: string) {
