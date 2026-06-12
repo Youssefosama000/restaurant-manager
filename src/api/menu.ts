@@ -36,6 +36,10 @@ export async function getMealById(mealId: string) {
   return api.get(`/v1/meals/${mealId}`);
 }
 
+export async function getPendingMealById(mealId: string) {
+  return api.get(`/v1/meals/pending/${mealId}`);
+}
+
 export async function addSize(mealId: string, payload: MealSizePayload) {
   return api.post(`/v1/meals/${mealId}/sizes`, payload);
 }

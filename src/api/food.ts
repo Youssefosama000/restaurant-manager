@@ -35,6 +35,19 @@ export async function searchFood(
   return (res as FoodSearchResponse).items ?? (res as FoodSearchResponse).data ?? [];
 }
 
+/** Get a single food item by its ID */
+export async function getFoodById(foodId: string): Promise<FoodItem | null> {
+  try {
+    const res = await api.get<FoodItem | { food?: FoodItem; data?: FoodItem; item?: FoodItem }>(`/v1/food/${foodId}`);
+    if (!res) return null;
+    if ((res as FoodItem).id) return res as FoodItem;
+    const r = res as { food?: FoodItem; data?: FoodItem; item?: FoodItem };
+    return r.food ?? r.data ?? r.item ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /** Search external food database */
 export async function searchExternalFood(term: string): Promise<FoodItem[]> {
   const res = await api.post<FoodItem[] | FoodSearchResponse>(

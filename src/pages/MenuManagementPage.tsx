@@ -3,7 +3,8 @@ import { Trash2, Plus, Upload, ChevronDown, CheckCircle, AlertCircle, Loader2, I
 import MainLayout from "../components/layout/MainLayout";
 import AddIngredientsModal from "../components/menu/AddIngredientsModal";
 import AddMealSizeModal, { type MealSizeData } from "../components/menu/AddMealSizeModal";
-import { addMeal, getMealById, removeSize as deleteMealSize } from "../api/menu";
+import { addMeal, getMealById, getPendingMealById, addSize, removeSize as deleteMealSize } from "../api/menu";
+import { getFoodById } from "../api/food";
 import { getRestaurantMenu, getCategories, createCategory, type MenuCategory, type MenuResponse, type Category } from "../api/restaurants";
 import { type FoodItem } from "../api/food";
 import FoodImage from "../components/menu/FoodImage";
@@ -31,6 +32,11 @@ export default function MenuManagementPage() {
   const [loadingSizes, setLoadingSizes] = useState<string | null>(null);
   const [deletingSize, setDeletingSize] = useState<string | null>(null);
   const [sizeError, setSizeError] = useState<string | null>(null);
+
+  /* add size to existing meal */
+  const [addingSizeToMealId,     setAddingSizeToMealId]     = useState<string | null>(null);
+  const [addingSizeIngredients,  setAddingSizeIngredients]  = useState<FoodItem[]>([]);
+  const [loadingMealForSize,     setLoadingMealForSize]     = useState<string | null>(null);
 
   /* create-category state */
   const [newCategory, setNewCategory] = useState("");
@@ -125,6 +131,123 @@ export default function MenuManagementPage() {
       setSizeError(err instanceof Error ? err.message : "Failed to delete size");
     } finally {
       setDeletingSize(null);
+    }
+  };
+
+  const handleOpenAddSizeForMeal = async (mealId: string) => {
+    setSizeError(null);
+    setLoadingMealForSize(mealId);
+    try {
+      let res: unknown;
+      try {
+        res = await getMealById(mealId);
+      } catch {
+        res = await getPendingMealById(mealId).catch(() => ({}));
+      }
+
+      if (import.meta.env.DEV) console.log("[AddSize] meal response:", JSON.stringify(res, null, 2));
+
+      const root = res as Record<string, unknown>;
+      const meal = (root.meal ?? root.data ?? root.result ?? root) as Record<string, unknown>;
+
+      // Helper to extract a FoodItem from any object-like ingredient record
+      const mapIngredient = (i: Record<string, unknown>): FoodItem => ({
+        id:   String(i.id ?? i.ingredientId ?? i.IngredientId ?? i.foodId ?? i.FoodId ?? ""),
+        name: String(i.name ?? i.Name ?? i.ingredientName ?? i.IngredientName ?? i.FoodName ?? i.foodName ?? ""),
+        caloriesPer100g: Number(i.caloriesPer100g ?? i.CaloriesPer100g ?? i.calories ?? i.Calories ?? i.CaloriesPerServing ?? 0),
+        protein: Number(i.protein ?? i.Protein ?? i.proteinG ?? i.ProteinG ?? 0),
+        fat:     Number(i.fat ?? i.Fat ?? i.totalFat ?? i.TotalFat ?? i.fatG ?? i.FatG ?? 0),
+        carbs:   Number(i.carbs ?? i.Carbs ?? i.carbohydrates ?? i.Carbohydrates ?? i.carbsG ?? i.CarbsG ?? 0),
+        imageUrl: String(i.imageUrl ?? i.ImageUrl ?? i.image ?? i.Image ?? i.imgUrl ?? i.ImgUrl ?? ""),
+      });
+
+      // Step 1: try to get ingredient objects directly from any known key
+      const directRaw: unknown[] =
+        (Array.isArray(meal.ingredients)         ? meal.ingredients         : null) ??
+        (Array.isArray(meal.ingredientDetails)   ? meal.ingredientDetails   : null) ??
+        (Array.isArray(meal.items)               ? meal.items               : null) ??
+        (Array.isArray(meal.foods)               ? meal.foods               : null) ??
+        (Array.isArray(root.ingredients)         ? root.ingredients         : null) ??
+        (Array.isArray(root.ingredientDetails)   ? root.ingredientDetails   : null) ??
+        [];
+
+      // Object-shaped ingredients (have nutrition data already)
+      const objectIngredients: FoodItem[] = (directRaw as Array<Record<string, unknown>>)
+        .filter((i) => typeof i === "object" && i !== null)
+        .map(mapIngredient)
+        .filter((i) => !!i.id);
+
+      // String IDs (backend sent just UUID list)
+      const stringIds: string[] = (directRaw as unknown[])
+        .filter((i) => typeof i === "string" && (i as string).length > 8)
+        .map((i) => String(i));
+
+      // Step 2: also look in sizes[n].ingredientQuantities for nested ingredient data
+      const sizesArr: Array<Record<string, unknown>> = (
+        Array.isArray(meal.sizes) ? meal.sizes :
+        Array.isArray(root.sizes) ? root.sizes : []
+      ) as Array<Record<string, unknown>>;
+
+      const sizeIngredients: FoodItem[] = sizesArr.flatMap((sz) => {
+        const iq = sz.ingredientQuantities ?? sz.IngredientQuantities ?? sz.ingredients ?? [];
+        if (!Array.isArray(iq)) return [];
+        return (iq as Array<Record<string, unknown>>)
+          .filter((i) => typeof i === "object" && i !== null)
+          .map((i) => {
+            // IngredientQuantity might nest the full ingredient under i.ingredient / i.food
+            const nested = (i.ingredient ?? i.food ?? i.Ingredient ?? i.Food) as Record<string, unknown> | undefined;
+            return mapIngredient(nested ?? i);
+          })
+          .filter((i) => !!i.id);
+      });
+
+      // Deduplicate by ID (prefer objectIngredients > sizeIngredients)
+      const byId = new Map<string, FoodItem>();
+      for (const f of [...sizeIngredients, ...objectIngredients]) if (f.id) byId.set(f.id, f);
+
+      // Collect all known IDs (including bare string IDs)
+      const allIds = new Set([...byId.keys(), ...stringIds]);
+
+      // Step 3: for IDs we don't have nutrition for, call GET /v1/food/:id
+      const idsNeedingLookup = [...allIds].filter(
+        (id) => !byId.has(id) || (!byId.get(id)!.protein && !byId.get(id)!.fat && !byId.get(id)!.carbs)
+      );
+
+      if (idsNeedingLookup.length > 0) {
+        const fetched = await Promise.all(idsNeedingLookup.map((id) => getFoodById(id)));
+        for (const f of fetched) {
+          if (f && f.id) byId.set(f.id, f);
+        }
+      }
+
+      const ingredients = [...byId.values()];
+      setAddingSizeIngredients(ingredients);
+      setAddingSizeToMealId(mealId);
+    } catch {
+      setAddingSizeIngredients([]);
+      setAddingSizeToMealId(mealId);
+    } finally {
+      setLoadingMealForSize(null);
+    }
+  };
+
+  const handleSaveExistingMealSize = async (size: import("../components/menu/AddMealSizeModal").MealSizeData) => {
+    if (!addingSizeToMealId) return;
+    try {
+      await addSize(addingSizeToMealId, {
+        name:      size.name || "Size",
+        price:     parseFloat(size.price) || 0,
+        sortOrder: parseInt(size.sortOrder) || 1,
+        ingredientQuantities: addingSizeIngredients.map((i) => ({
+          ingredientId: i.id,
+          quantity:     size.ingredientQuantities[i.id] ?? 0,
+        })),
+      });
+      setAddingSizeToMealId(null);
+      setAddingSizeIngredients([]);
+      loadMenu();
+    } catch (err) {
+      setSizeError(err instanceof Error ? err.message : "Failed to add size");
     }
   };
 
@@ -229,6 +352,14 @@ export default function MenuManagementPage() {
         />
       )}
 
+      {addingSizeToMealId && (
+        <AddMealSizeModal
+          ingredients={addingSizeIngredients}
+          onClose={() => { setAddingSizeToMealId(null); setAddingSizeIngredients([]); }}
+          onSave={handleSaveExistingMealSize}
+        />
+      )}
+
       {/* ── Page header ── */}
       <div className="mb-5">
         <h1 className="text-xl font-bold text-slyce-dark">Menu Management</h1>
@@ -315,7 +446,7 @@ export default function MenuManagementPage() {
                           </div>
                           </div>
                           {/* ── Sizes manager: view existing sizes and delete them ── */}
-                          <div className="mt-2 border-t border-slyce-border/60 pt-2">
+                          <div className="mt-2 border-t border-slyce-border/60 pt-2 flex items-center justify-between gap-2">
                             <button
                               onClick={() => toggleMealSizes(meal.id)}
                               className="flex items-center gap-1 text-[10px] font-semibold text-slyce-grey hover:text-green-primary transition-colors"
@@ -325,6 +456,16 @@ export default function MenuManagementPage() {
                                 className={`transition-transform ${expandedMeal === meal.id ? "rotate-180" : ""}`}
                               />
                               Manage sizes
+                            </button>
+                            <button
+                              onClick={() => handleOpenAddSizeForMeal(meal.id)}
+                              disabled={loadingMealForSize === meal.id}
+                              className="flex items-center gap-1 text-[10px] font-semibold text-green-primary hover:text-green-700 transition-colors disabled:opacity-50"
+                            >
+                              {loadingMealForSize === meal.id
+                                ? <Loader2 size={10} className="animate-spin" />
+                                : <Plus size={10} />}
+                              Add Size
                             </button>
                             {expandedMeal === meal.id && (
                               <div className="mt-2 space-y-1.5">
