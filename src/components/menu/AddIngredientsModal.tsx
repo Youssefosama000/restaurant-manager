@@ -89,7 +89,7 @@ export default function AddIngredientsModal({ onClose, onAdd }: Props) {
             <p className="text-xs font-semibold text-slyce-dark leading-snug">{item.name}</p>
           </div>
           <p className="text-[10px] text-slyce-grey mt-0.5">
-            {item.caloriesPer100g} kcal/100g · P {item.protein}g · F {item.fat}g · C {item.carbs}g
+            {item.caloriesPer100g || Math.round((item.protein ?? 0) * 4 + (item.fat ?? 0) * 9 + (item.carbs ?? 0) * 4)} kcal/100g · P {item.protein ?? 0}g · F {item.fat ?? 0}g · C {item.carbs ?? 0}g
           </p>
         </div>
         <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${

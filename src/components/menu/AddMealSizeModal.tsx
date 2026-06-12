@@ -2,6 +2,7 @@ import { useState } from "react";
 import { X, ArrowRight } from "lucide-react";
 import NutritionCircle from "../charts/NutritionCircle";
 import { type FoodItem } from "../../api/food";
+import FoodImage from "./FoodImage";
 
 export interface MealSizeData {
   id: string;
@@ -23,7 +24,7 @@ export default function AddMealSizeModal({ ingredients, onClose, onSave, existin
   const [price,     setPrice]     = useState(existing?.price ?? "");
   const [sortOrder, setSortOrder] = useState(existing?.sortOrder ?? "");
   const [quantities, setQuantities] = useState<Record<string, number>>(
-    existing?.ingredientQuantities ?? Object.fromEntries(ingredients.map((i) => [i.id, 100]))
+    existing?.ingredientQuantities ?? Object.fromEntries(ingredients.map((i) => [i.id, 0]))
   );
 
   const setGrams = (id: string, val: string) => {
@@ -111,16 +112,10 @@ export default function AddMealSizeModal({ ingredients, onClose, onSave, existin
           {ingredients.length > 0 && (
             <div className="space-y-2">
               {ingredients.map((item) => {
-                const grams = quantities[item.id] ?? 100;
+                const grams = quantities[item.id] ?? 0;
                 return (
                   <div key={item.id} className="flex items-center gap-3 py-1">
-                    {item.imageUrl ? (
-                      <img src={item.imageUrl} alt={item.name}
-                        className="w-9 h-9 rounded-xl object-cover flex-shrink-0"
-                        onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
-                    ) : (
-                      <div className="w-9 h-9 rounded-xl bg-cream flex items-center justify-center flex-shrink-0 text-base">🥩</div>
-                    )}
+                    <FoodImage name={item.name} imageUrl={item.imageUrl} className="w-9 h-9 rounded-xl flex-shrink-0" emojiSize="text-base" />
                     <span className="text-xs text-slyce-dark flex-1 leading-snug">{item.name}</span>
                     <div className="flex items-center gap-1 flex-shrink-0">
                       <input
