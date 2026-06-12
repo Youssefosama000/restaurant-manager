@@ -6,6 +6,7 @@ import AddMealSizeModal, { type MealSizeData } from "../components/menu/AddMealS
 import { addMeal, getMealById, removeSize as deleteMealSize } from "../api/menu";
 import { getRestaurantMenu, getCategories, createCategory, type MenuCategory, type MenuResponse, type Category } from "../api/restaurants";
 import { type FoodItem } from "../api/food";
+import FoodImage from "../components/menu/FoodImage";
 import { useAuth } from "../context/AuthContext";
 
 export default function MenuManagementPage() {
@@ -487,13 +488,7 @@ export default function MenuManagementPage() {
                   <div className="space-y-1.5">
                     {ingredients.map((item) => (
                       <div key={item.id} className="flex items-center gap-2.5 p-2 rounded-xl hover:bg-cream transition-colors">
-                        {item.imageUrl ? (
-                          <img src={item.imageUrl} alt={item.name}
-                            className="w-8 h-8 rounded-lg object-cover flex-shrink-0"
-                            onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
-                        ) : (
-                          <div className="w-8 h-8 rounded-lg bg-cream-card flex items-center justify-center flex-shrink-0 text-sm">🥩</div>
-                        )}
+                        <FoodImage name={item.name} imageUrl={item.imageUrl} className="w-8 h-8 rounded-lg flex-shrink-0" emojiSize="text-sm" />
                         <span className="text-xs text-slyce-dark flex-1 truncate leading-snug">{item.name}</span>
                         <button onClick={() => setIngredients((p) => p.filter((i) => i.id !== item.id))}
                           className="text-slyce-grey hover:text-red-500 transition-colors flex-shrink-0">

@@ -1,38 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { X, Search, Loader2, Globe } from "lucide-react";
-
-function foodEmoji(name: string): string {
-  const n = name.toLowerCase();
-  if (/bread|brioche|bun|loaf|roll|toast|baguette|pita|naan|croissant/.test(n)) return "🍞";
-  if (/beef|steak|burger|patty|mince|veal|lamb|mutton/.test(n)) return "🥩";
-  if (/chicken|poultry|turkey|duck/.test(n)) return "🍗";
-  if (/fish|salmon|tuna|shrimp|prawn|seafood|crab|lobster|anchovy|sardine/.test(n)) return "🐟";
-  if (/egg/.test(n)) return "🥚";
-  if (/cheese|cheddar|mozzarella|parmesan|feta|gouda/.test(n)) return "🧀";
-  if (/milk|cream|yogurt|butter|dairy/.test(n)) return "🥛";
-  if (/rice|quinoa|oat|barley|grain/.test(n)) return "🍚";
-  if (/pasta|noodle|spaghetti|macaroni|penne/.test(n)) return "🍝";
-  if (/tomato/.test(n)) return "🍅";
-  if (/lettuce|spinach|kale|broccoli|cabbage|celery/.test(n)) return "🥦";
-  if (/potato|fries|chips/.test(n)) return "🥔";
-  if (/onion|shallot/.test(n)) return "🧅";
-  if (/garlic/.test(n)) return "🧄";
-  if (/lemon|lime|orange|citrus/.test(n)) return "🍋";
-  if (/apple/.test(n)) return "🍎";
-  if (/avocado/.test(n)) return "🥑";
-  if (/mushroom/.test(n)) return "🍄";
-  if (/olive|oil/.test(n)) return "🫒";
-  if (/honey|syrup/.test(n)) return "🍯";
-  if (/chocolate|cocoa/.test(n)) return "🍫";
-  if (/pepper|chili|spice/.test(n)) return "🌶️";
-  if (/bean|lentil|chickpea|legume/.test(n)) return "🫘";
-  if (/corn|maize/.test(n)) return "🌽";
-  if (/carrot/.test(n)) return "🥕";
-  if (/sauce|ketchup|mustard|mayo/.test(n)) return "🥫";
-  if (/sugar|flour|salt/.test(n)) return "🧂";
-  if (/water|juice|drink/.test(n)) return "💧";
-  return "🥘";
-}
+import FoodImage from "./FoodImage";
 import { searchFood, searchExternalFood, type FoodItem } from "../../api/food";
 
 interface Props {
@@ -46,7 +14,6 @@ export default function AddIngredientsModal({ onClose, onAdd }: Props) {
   const [selected,        setSelected]        = useState<Set<string>>(new Set());
   const [loading,         setLoading]         = useState(false);
   const [error,           setError]           = useState<string | null>(null);
-  const [showExternalBtn, setShowExternalBtn] = useState(false);
   const [externalResults, setExternalResults] = useState<FoodItem[]>([]);
   const [externalLoading, setExternalLoading] = useState(false);
   const [externalError,   setExternalError]   = useState<string | null>(null);
@@ -55,19 +22,16 @@ export default function AddIngredientsModal({ onClose, onAdd }: Props) {
   const doSearch = useCallback(async (term: string) => {
     if (!term.trim()) {
       setResults([]);
-      setShowExternalBtn(false);
       setExternalResults([]);
       return;
     }
     setLoading(true);
     setError(null);
-    setShowExternalBtn(false);
     setExternalResults([]);
     lastExternalTerm.current = "";
     try {
       const items = await searchFood(term);
       setResults(items);
-      if (items.length === 0) setShowExternalBtn(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Search failed");
       setResults([]);
@@ -119,14 +83,7 @@ export default function AddIngredientsModal({ onClose, onAdd }: Props) {
           isSelected ? "bg-green-primary/10 border border-green-primary/30" : "hover:bg-cream"
         }`}
       >
-        {item.imageUrl ? (
-          <img src={item.imageUrl} alt={item.name} className="w-10 h-10 rounded-xl object-cover flex-shrink-0"
-            onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
-        ) : (
-          <div className="w-10 h-10 rounded-xl bg-cream flex items-center justify-center flex-shrink-0 text-xl">
-            {foodEmoji(item.name)}
-          </div>
-        )}
+        <FoodImage name={item.name} imageUrl={item.imageUrl} className="w-10 h-10 rounded-xl flex-shrink-0" />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
             <p className="text-xs font-semibold text-slyce-dark leading-snug">{item.name}</p>
@@ -185,44 +142,43 @@ export default function AddIngredientsModal({ onClose, onAdd }: Props) {
           {/* Internal results */}
           {results.map((item) => renderItem(item))}
 
-          {/* No internal results → offer external search */}
-          {!loading && search.trim() && results.length === 0 && showExternalBtn && (
-            <div className="flex flex-col items-center py-6 gap-3">
-              <p className="text-xs text-slyce-grey text-center">No results found for "{search}"</p>
-              <button
-                onClick={handleExternalSearch}
-                disabled={externalLoading}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl border border-blue-200 bg-blue-50 text-blue-600 text-xs font-semibold hover:bg-blue-100 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-              >
-                {externalLoading
-                  ? <Loader2 size={13} className="animate-spin" />
-                  : <Globe size={13} />}
-                Didn't find it? Search more ingredients
-              </button>
-              {externalError && <p className="text-[10px] text-red-500">{externalError}</p>}
-            </div>
+          {/* No internal results message */}
+          {!loading && search.trim() && results.length === 0 && externalResults.length === 0 && !externalLoading && (
+            <p className="text-xs text-slyce-grey text-center pt-6">No results found for "{search}"</p>
           )}
 
           {/* External results */}
           {externalResults.length > 0 && (
             <>
-              {results.length > 0 && (
-                <div className="flex items-center gap-2 py-2">
-                  <div className="flex-1 h-px bg-slyce-border" />
-                  <span className="text-[10px] text-slyce-grey font-medium flex items-center gap-1">
-                    <Globe size={10} /> More Results
-                  </span>
-                  <div className="flex-1 h-px bg-slyce-border" />
-                </div>
-              )}
+              <div className="flex items-center gap-2 py-2">
+                <div className="flex-1 h-px bg-slyce-border" />
+                <span className="text-[10px] text-slyce-grey font-medium flex items-center gap-1">
+                  <Globe size={10} /> More Results
+                </span>
+                <div className="flex-1 h-px bg-slyce-border" />
+              </div>
               {externalResults.map((item) => renderItem(item))}
             </>
           )}
 
-          {/* External loading inline (when internal also has results) */}
-          {externalLoading && results.length > 0 && (
+          {/* External loading */}
+          {externalLoading && (
             <div className="flex items-center justify-center gap-2 py-4 text-xs text-slyce-grey">
-              <Loader2 size={13} className="animate-spin" /> Searching global database…
+              <Loader2 size={13} className="animate-spin" /> Searching more ingredients…
+            </div>
+          )}
+
+          {/* Always-visible external search button once internal search is done */}
+          {!loading && search.trim() && !externalLoading && lastExternalTerm.current !== search.trim() && (
+            <div className="flex flex-col items-center pt-4 pb-2 gap-2">
+              <button
+                onClick={handleExternalSearch}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl border border-blue-200 bg-blue-50 text-blue-600 text-xs font-semibold hover:bg-blue-100 transition-colors"
+              >
+                <Globe size={13} />
+                Didn't find it? Search more ingredients
+              </button>
+              {externalError && <p className="text-[10px] text-red-500">{externalError}</p>}
             </div>
           )}
         </div>
