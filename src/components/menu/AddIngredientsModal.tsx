@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
-import { X, Search, Loader2 } from "lucide-react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { X, Search, Loader2, Globe } from "lucide-react";
 import { searchFood, searchExternalFood, type FoodItem } from "../../api/food";
 
 interface Props {
@@ -8,20 +8,33 @@ interface Props {
 }
 
 export default function AddIngredientsModal({ onClose, onAdd }: Props) {
-  const [search,   setSearch]   = useState("");
-  const [results,  setResults]  = useState<FoodItem[]>([]);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [loading,  setLoading]  = useState(false);
-  const [error,    setError]    = useState<string | null>(null);
+  const [search,          setSearch]          = useState("");
+  const [results,         setResults]         = useState<FoodItem[]>([]);
+  const [selected,        setSelected]        = useState<Set<string>>(new Set());
+  const [loading,         setLoading]         = useState(false);
+  const [error,           setError]           = useState<string | null>(null);
+  const [showExternalBtn, setShowExternalBtn] = useState(false);
+  const [externalResults, setExternalResults] = useState<FoodItem[]>([]);
+  const [externalLoading, setExternalLoading] = useState(false);
+  const [externalError,   setExternalError]   = useState<string | null>(null);
+  const lastExternalTerm  = useRef<string>("");
 
   const doSearch = useCallback(async (term: string) => {
-    if (!term.trim()) { setResults([]); return; }
+    if (!term.trim()) {
+      setResults([]);
+      setShowExternalBtn(false);
+      setExternalResults([]);
+      return;
+    }
     setLoading(true);
     setError(null);
+    setShowExternalBtn(false);
+    setExternalResults([]);
+    lastExternalTerm.current = "";
     try {
-      let items = await searchFood(term);
-      if (!items.length) items = await searchExternalFood(term);
+      const items = await searchFood(term);
       setResults(items);
+      if (items.length === 0) setShowExternalBtn(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Search failed");
       setResults([]);
@@ -35,6 +48,22 @@ export default function AddIngredientsModal({ onClose, onAdd }: Props) {
     return () => clearTimeout(t);
   }, [search, doSearch]);
 
+  const handleExternalSearch = async () => {
+    const term = search.trim();
+    if (!term || lastExternalTerm.current === term) return;
+    lastExternalTerm.current = term;
+    setExternalLoading(true);
+    setExternalError(null);
+    try {
+      const items = await searchExternalFood(term);
+      setExternalResults(items);
+    } catch (err) {
+      setExternalError(err instanceof Error ? err.message : "External search failed");
+    } finally {
+      setExternalLoading(false);
+    }
+  };
+
   const toggle = (id: string) =>
     setSelected((prev) => {
       const next = new Set(prev);
@@ -42,9 +71,46 @@ export default function AddIngredientsModal({ onClose, onAdd }: Props) {
       return next;
     });
 
+  const allResults = [...results, ...externalResults];
+
   const handleConfirm = () => {
-    onAdd(results.filter((i) => selected.has(i.id)));
+    onAdd(allResults.filter((i) => selected.has(i.id)));
     onClose();
+  };
+
+  const renderItem = (item: FoodItem, isExternal = false) => {
+    const isSelected = selected.has(item.id);
+    return (
+      <div key={item.id} onClick={() => toggle(item.id)}
+        className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-colors ${
+          isSelected ? "bg-green-primary/10 border border-green-primary/30" : "hover:bg-cream"
+        }`}
+      >
+        {item.imageUrl ? (
+          <img src={item.imageUrl} alt={item.name} className="w-10 h-10 rounded-xl object-cover flex-shrink-0"
+            onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+        ) : (
+          <div className="w-10 h-10 rounded-xl bg-cream flex items-center justify-center flex-shrink-0 text-lg">🥩</div>
+        )}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5">
+            <p className="text-xs font-semibold text-slyce-dark leading-snug">{item.name}</p>
+          </div>
+          <p className="text-[10px] text-slyce-grey mt-0.5">
+            {item.caloriesPer100g} kcal/100g · P {item.protein}g · F {item.fat}g · C {item.carbs}g
+          </p>
+        </div>
+        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
+          isSelected ? "bg-green-primary border-green-primary" : "border-slyce-border"
+        }`}>
+          {isSelected && (
+            <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+              <path d="M1 4l2.5 2.5L9 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          )}
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -76,44 +142,54 @@ export default function AddIngredientsModal({ onClose, onAdd }: Props) {
         </div>
 
         <div className="px-5 overflow-y-auto flex-1 space-y-1 pb-3">
+          {/* Empty / idle state */}
           {!loading && !search.trim() && (
             <p className="text-xs text-slyce-grey text-center py-8">Start typing to search ingredients…</p>
           )}
-          {!loading && search.trim() && results.length === 0 && (
-            <p className="text-xs text-slyce-grey text-center py-8">No results for "{search}"</p>
-          )}
-          {results.map((item) => {
-            const isSelected = selected.has(item.id);
-            return (
-              <div key={item.id} onClick={() => toggle(item.id)}
-                className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-colors ${
-                  isSelected ? "bg-green-primary/10 border border-green-primary/30" : "hover:bg-cream"
-                }`}
+
+          {/* Internal results */}
+          {results.map((item) => renderItem(item, false))}
+
+          {/* No internal results → offer external search */}
+          {!loading && search.trim() && results.length === 0 && showExternalBtn && (
+            <div className="flex flex-col items-center py-6 gap-3">
+              <p className="text-xs text-slyce-grey text-center">No results found for "{search}"</p>
+              <button
+                onClick={handleExternalSearch}
+                disabled={externalLoading}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl border border-blue-200 bg-blue-50 text-blue-600 text-xs font-semibold hover:bg-blue-100 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                {item.imageUrl ? (
-                  <img src={item.imageUrl} alt={item.name} className="w-10 h-10 rounded-xl object-cover flex-shrink-0"
-                    onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
-                ) : (
-                  <div className="w-10 h-10 rounded-xl bg-cream flex items-center justify-center flex-shrink-0 text-lg">🥩</div>
-                )}
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-semibold text-slyce-dark leading-snug">{item.name}</p>
-                  <p className="text-[10px] text-slyce-grey mt-0.5">
-                    {item.caloriesPer100g} kcal/100g · P {item.protein}g · F {item.fat}g · C {item.carbs}g
-                  </p>
+                {externalLoading
+                  ? <Loader2 size={13} className="animate-spin" />
+                  : <Globe size={13} />}
+                Didn't find it? Search more ingredients
+              </button>
+              {externalError && <p className="text-[10px] text-red-500">{externalError}</p>}
+            </div>
+          )}
+
+          {/* External results */}
+          {externalResults.length > 0 && (
+            <>
+              {results.length > 0 && (
+                <div className="flex items-center gap-2 py-2">
+                  <div className="flex-1 h-px bg-slyce-border" />
+                  <span className="text-[10px] text-slyce-grey font-medium flex items-center gap-1">
+                    <Globe size={10} /> More Results
+                  </span>
+                  <div className="flex-1 h-px bg-slyce-border" />
                 </div>
-                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
-                  isSelected ? "bg-green-primary border-green-primary" : "border-slyce-border"
-                }`}>
-                  {isSelected && (
-                    <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
-                      <path d="M1 4l2.5 2.5L9 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+              )}
+              {externalResults.map((item) => renderItem(item, true))}
+            </>
+          )}
+
+          {/* External loading inline (when internal also has results) */}
+          {externalLoading && results.length > 0 && (
+            <div className="flex items-center justify-center gap-2 py-4 text-xs text-slyce-grey">
+              <Loader2 size={13} className="animate-spin" /> Searching global database…
+            </div>
+          )}
         </div>
 
         <div className="px-5 py-4 border-t border-slyce-border flex-shrink-0">
