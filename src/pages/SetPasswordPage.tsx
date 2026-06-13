@@ -30,7 +30,7 @@ function PasswordStrength({ password }: { password: string }) {
 export default function SetPasswordPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const token = searchParams.get("token");
+  const token = searchParams.get("token")?.replace(/ /g, "+") ?? null;
 
   const [password, setPasswordVal]   = useState("");
   const [confirm, setConfirm]        = useState("");
