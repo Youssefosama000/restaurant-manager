@@ -1,28 +1,12 @@
 import { useState } from "react";
-import { Plus, MapPin, Phone, CheckCircle, Store, Loader2, AlertCircle } from "lucide-react";
+import { Plus, MapPin, CheckCircle, Store, Loader2 } from "lucide-react";
 import MainLayout from "../components/layout/MainLayout";
 import AddBranchModal from "../components/branches/AddBranchModal";
 import { useAuth } from "../context/AuthContext";
-import { activateBranch } from "../api/branches";
 
 export default function BranchesPage() {
   const { branches, branchesLoading, branchesError, refreshBranches } = useAuth();
   const [showModal, setShowModal] = useState(false);
-  const [activating, setActivating] = useState<string | null>(null);
-  const [activateError, setActivateError] = useState<string | null>(null);
-
-  async function handleActivate(branchId: string) {
-    setActivating(branchId);
-    setActivateError(null);
-    try {
-      await activateBranch(branchId);
-      await refreshBranches();
-    } catch (err) {
-      setActivateError(err instanceof Error ? err.message : "Failed to activate branch.");
-    } finally {
-      setActivating(null);
-    }
-  }
 
   async function handleBranchAdded() {
     await refreshBranches();
@@ -43,13 +27,6 @@ export default function BranchesPage() {
           Add Branch
         </button>
       </div>
-
-      {activateError && (
-        <div className="flex items-start gap-2 bg-red-50 border border-red-200 text-red-700 text-xs px-3 py-2.5 rounded-xl mb-4">
-          <AlertCircle size={13} className="flex-shrink-0 mt-0.5" />
-          {activateError}
-        </div>
-      )}
 
       {branchesLoading && (
         <div className="flex items-center gap-2 text-sm text-slyce-grey py-12 justify-center">
@@ -108,27 +85,6 @@ export default function BranchesPage() {
                   <MapPin size={12} className="flex-shrink-0" />
                   {[branch.area, branch.city].filter(Boolean).join(", ")}
                 </div>
-              )}
-
-              {/* Activate button for inactive branches */}
-              {!branch.isActive && (
-                <button
-                  onClick={() => handleActivate(branch.id)}
-                  disabled={activating === branch.id}
-                  className="mt-auto flex items-center justify-center gap-1.5 w-full py-2 rounded-xl border border-green-primary text-green-primary text-xs font-semibold hover:bg-green-primary hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {activating === branch.id ? (
-                    <>
-                      <Loader2 size={12} className="animate-spin" />
-                      Activating…
-                    </>
-                  ) : (
-                    <>
-                      <Phone size={12} />
-                      Activate Branch
-                    </>
-                  )}
-                </button>
               )}
             </div>
           ))}

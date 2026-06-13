@@ -27,7 +27,15 @@ export interface AddMealResponse {
 }
 
 export async function addMeal(payload: AddMealPayload): Promise<AddMealResponse> {
-  return api.post<AddMealResponse>("/v1/meals", payload, {
+  // Backend expects "IngredientQuantities" (capital I) — transform before sending
+  const body = {
+    ...payload,
+    sizes: payload.sizes.map(({ ingredientQuantities, ...rest }) => ({
+      ...rest,
+      IngredientQuantities: ingredientQuantities,
+    })),
+  };
+  return api.post<AddMealResponse>("/v1/meals", body, {
     withRestaurantId: true,
   });
 }
@@ -41,7 +49,11 @@ export async function getPendingMealById(mealId: string) {
 }
 
 export async function addSize(mealId: string, payload: MealSizePayload) {
-  return api.post(`/v1/meals/${mealId}/sizes`, payload);
+  const { ingredientQuantities, ...rest } = payload;
+  return api.post(`/v1/meals/${mealId}/sizes`, {
+    ...rest,
+    IngredientQuantities: ingredientQuantities,
+  });
 }
 
 export async function removeSize(mealId: string, sizeId: string) {

@@ -33,6 +33,10 @@ export async function setWorkingHours(branchId: string, schedule: ScheduleDay[])
   return api.post(`/v1/branches/${branchId}/working-hours`, { schedule }, { withRestaurantId: true });
 }
 
+export async function updateWorkingHours(branchId: string, schedule: ScheduleDay[]) {
+  return api.put(`/v1/branches/${branchId}/working-hours`, { schedule }, { withRestaurantId: true });
+}
+
 export async function getAllergens(): Promise<{ id: string; name: string }[]> {
   const res = await api.get<{ id: string; name: string }[] | { items: { id: string; name: string }[] }>("/v1/food/allergens");
   return Array.isArray(res) ? res : (res as { items: { id: string; name: string }[] }).items ?? [];

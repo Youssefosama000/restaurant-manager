@@ -4,7 +4,7 @@ import MainLayout from "../components/layout/MainLayout";
 import AddIngredientsModal from "../components/menu/AddIngredientsModal";
 import AddMealSizeModal, { type MealSizeData } from "../components/menu/AddMealSizeModal";
 import { addMeal, getMealById, getPendingMealById, addSize, removeSize as deleteMealSize } from "../api/menu";
-import { getFoodById } from "../api/food";
+import { searchFood } from "../api/food";
 import { getRestaurantMenu, getCategories, createCategory, type MenuCategory, type MenuResponse, type Category } from "../api/restaurants";
 import { type FoodItem } from "../api/food";
 import FoodImage from "../components/menu/FoodImage";
@@ -28,15 +28,16 @@ export default function MenuManagementPage() {
 
   /* per-meal size management (view existing sizes + delete a size) */
   const [expandedMeal, setExpandedMeal] = useState<string | null>(null);
-  const [mealSizes, setMealSizes] = useState<Record<string, Array<{ id: string; name: string; price: number }>>>({});
+  const [mealSizes, setMealSizes] = useState<Record<string, Array<{ id: string; name: string; price: number; calories?: number }>>>({});
   const [loadingSizes, setLoadingSizes] = useState<string | null>(null);
   const [deletingSize, setDeletingSize] = useState<string | null>(null);
   const [sizeError, setSizeError] = useState<string | null>(null);
 
   /* add size to existing meal */
-  const [addingSizeToMealId,     setAddingSizeToMealId]     = useState<string | null>(null);
-  const [addingSizeIngredients,  setAddingSizeIngredients]  = useState<FoodItem[]>([]);
-  const [loadingMealForSize,     setLoadingMealForSize]     = useState<string | null>(null);
+  const [addingSizeToMealId,       setAddingSizeToMealId]       = useState<string | null>(null);
+  const [addingSizeIngredients,    setAddingSizeIngredients]    = useState<FoodItem[]>([]);
+  const [addingSizeNextSortOrder,  setAddingSizeNextSortOrder]  = useState(1);
+  const [loadingMealForSize,       setLoadingMealForSize]       = useState<string | null>(null);
 
   /* create-category state */
   const [newCategory, setNewCategory] = useState("");
@@ -84,7 +85,7 @@ export default function MenuManagementPage() {
   useEffect(() => { loadMenu(); }, [loadMenu]);
 
   /* ── View / delete a meal's sizes (GET /v1/meals/:id + DELETE .../sizes/:id) ── */
-  const parseSizes = (res: unknown): Array<{ id: string; name: string; price: number }> => {
+  const parseSizes = (res: unknown): Array<{ id: string; name: string; price: number; calories?: number }> => {
     const root = (res as Record<string, unknown>) ?? {};
     const raw =
       (root.sizes as unknown[]) ??
@@ -93,10 +94,15 @@ export default function MenuManagementPage() {
       [];
     return (Array.isArray(raw) ? raw : []).map((s) => {
       const sz = s as Record<string, unknown>;
+      const cal = sz.calories ?? sz.Calories ?? sz.totalCalories ?? sz.TotalCalories ??
+        sz.calorie ?? sz.Calorie ?? sz.caloriesPerServing ?? sz.CaloriesPerServing ??
+        sz.lowestCalorieOption ?? sz.LowestCalorieOption ?? sz.calorieCount ?? sz.CalorieCount ??
+        sz.kcal ?? sz.Kcal ?? sz.energy ?? sz.Energy;
       return {
-        id: String(sz.sizeId ?? sz.id ?? sz.Id ?? ""),
-        name: String(sz.name ?? sz.Name ?? ""),
-        price: Number(sz.price ?? sz.Price ?? 0),
+        id:       String(sz.sizeId ?? sz.id ?? sz.Id ?? ""),
+        name:     String(sz.name ?? sz.Name ?? sz.sizeName ?? sz.SizeName ?? sz.title ?? sz.Title ?? ""),
+        price:    Number(sz.price ?? sz.Price ?? 0),
+        calories: cal != null ? Number(cal) : undefined,
       };
     });
   };
@@ -108,10 +114,28 @@ export default function MenuManagementPage() {
     if (mealSizes[mealId]) return;
     setLoadingSizes(mealId);
     try {
-      const res = await getMealById(mealId);
-      setMealSizes((prev) => ({ ...prev, [mealId]: parseSizes(res) }));
-    } catch (err) {
-      setSizeError(err instanceof Error ? err.message : "Failed to load sizes");
+      // Use the owner-view endpoint which returns sizes with calories.
+      // Despite the name it works for both pending and approved meals.
+      let res: unknown = null;
+      let apiCallSucceeded = false;
+      try {
+        res = await getPendingMealById(mealId);
+        apiCallSucceeded = true;
+      } catch {
+        try {
+          res = await getMealById(mealId);
+          apiCallSucceeded = true;
+        } catch { /* both failed */ }
+      }
+
+      if (apiCallSucceeded) {
+        const apiSizes = parseSizes(res);
+        setMealSizes((prev) => ({ ...prev, [mealId]: apiSizes }));
+      } else {
+        setSizeError("Could not load sizes from server.");
+      }
+    } catch {
+      setSizeError("Could not load sizes from server.");
     } finally {
       setLoadingSizes(null);
     }
@@ -138,15 +162,18 @@ export default function MenuManagementPage() {
     setSizeError(null);
     setLoadingMealForSize(mealId);
     try {
+      // Compute next sort order from already-loaded sizes
+      const loadedSizes = mealSizes[mealId] ?? [];
+      setAddingSizeNextSortOrder(loadedSizes.length + 1);
+
+      // Fetch the meal owner-view (works for both pending and approved meals).
+      // The response includes ingredients: [{foodId, name}].
       let res: unknown;
       try {
-        res = await getMealById(mealId);
+        res = await getPendingMealById(mealId);
       } catch {
-        res = await getPendingMealById(mealId).catch(() => ({}));
+        res = await getMealById(mealId).catch(() => ({}));
       }
-
-      if (import.meta.env.DEV) console.log("[AddSize] meal response:", JSON.stringify(res, null, 2));
-
       const root = res as Record<string, unknown>;
       const meal = (root.meal ?? root.data ?? root.result ?? root) as Record<string, unknown>;
 
@@ -177,11 +204,6 @@ export default function MenuManagementPage() {
         .map(mapIngredient)
         .filter((i) => !!i.id);
 
-      // String IDs (backend sent just UUID list)
-      const stringIds: string[] = (directRaw as unknown[])
-        .filter((i) => typeof i === "string" && (i as string).length > 8)
-        .map((i) => String(i));
-
       // Step 2: also look in sizes[n].ingredientQuantities for nested ingredient data
       const sizesArr: Array<Record<string, unknown>> = (
         Array.isArray(meal.sizes) ? meal.sizes :
@@ -205,22 +227,27 @@ export default function MenuManagementPage() {
       const byId = new Map<string, FoodItem>();
       for (const f of [...sizeIngredients, ...objectIngredients]) if (f.id) byId.set(f.id, f);
 
-      // Collect all known IDs (including bare string IDs)
-      const allIds = new Set([...byId.keys(), ...stringIds]);
-
-      // Step 3: for IDs we don't have nutrition for, call GET /v1/food/:id
-      const idsNeedingLookup = [...allIds].filter(
-        (id) => !byId.has(id) || (!byId.get(id)!.protein && !byId.get(id)!.fat && !byId.get(id)!.carbs)
+      // Step 3: for ingredients with a name but missing nutrition, search by name
+      const needNutrition = [...byId.values()].filter(
+        (f) => f.name && f.name !== "undefined" && !f.protein && !f.fat && !f.carbs && !f.caloriesPer100g
       );
-
-      if (idsNeedingLookup.length > 0) {
-        const fetched = await Promise.all(idsNeedingLookup.map((id) => getFoodById(id)));
-        for (const f of fetched) {
-          if (f && f.id) byId.set(f.id, f);
-        }
+      if (needNutrition.length > 0) {
+        const enriched = await Promise.all(
+          needNutrition.map(async (f) => {
+            try {
+              const results = await searchFood(f.name, 3, 1);
+              const match = results.find((r) => r.name.toLowerCase().includes(f.name.toLowerCase().split(" ")[0])) ?? results[0];
+              if (match) return { ...match, id: f.id };
+            } catch { /* ignore */ }
+            return f;
+          })
+        );
+        for (const f of enriched) { if (f?.id) byId.set(f.id, f); }
       }
 
-      const ingredients = [...byId.values()];
+      // Only keep ingredients we could actually resolve — discard empty placeholders.
+      // If no names are found, the modal shows "Add ingredients to the meal first" (correct).
+      const ingredients = [...byId.values()].filter((f) => !!f.id && !!f.name);
       setAddingSizeIngredients(ingredients);
       setAddingSizeToMealId(mealId);
     } catch {
@@ -233,8 +260,9 @@ export default function MenuManagementPage() {
 
   const handleSaveExistingMealSize = async (size: import("../components/menu/AddMealSizeModal").MealSizeData) => {
     if (!addingSizeToMealId) return;
+    const mealId = addingSizeToMealId;
     try {
-      await addSize(addingSizeToMealId, {
+      await addSize(mealId, {
         name:      size.name || "Size",
         price:     parseFloat(size.price) || 0,
         sortOrder: parseInt(size.sortOrder) || 1,
@@ -243,6 +271,8 @@ export default function MenuManagementPage() {
           quantity:     size.ingredientQuantities[i.id] ?? 0,
         })),
       });
+      // Invalidate the in-memory size cache so it re-fetches from API next open
+      setMealSizes((prev) => { const next = { ...prev }; delete next[mealId]; return next; });
       setAddingSizeToMealId(null);
       setAddingSizeIngredients([]);
       loadMenu();
@@ -296,6 +326,10 @@ export default function MenuManagementPage() {
     if (!restaurantId)       { setSaveError("Set your Restaurant ID in Settings first."); return; }
     if (!category)           { setSaveError("Select a category (create one below if the list is empty)."); return; }
     if (sizes.length === 0)  { setSaveError("Add at least one size."); return; }
+    if (mealImage?.startsWith("data:")) {
+      setSaveError("Please paste an image URL (starting with https://), not a base64 image.");
+      return;
+    }
 
     setSaveError(null);
     setSaving(true);
@@ -334,12 +368,12 @@ export default function MenuManagementPage() {
       {showIngModal && (
         <AddIngredientsModal
           onClose={() => setShowIngModal(false)}
-          onAdd={(items) =>
+          onAdd={(items) => {
             setIngredients((prev) => {
               const ids = new Set(prev.map((i) => i.id));
               return [...prev, ...items.filter((i) => !ids.has(i.id))];
-            })
-          }
+            });
+          }}
         />
       )}
 
@@ -355,6 +389,7 @@ export default function MenuManagementPage() {
       {addingSizeToMealId && (
         <AddMealSizeModal
           ingredients={addingSizeIngredients}
+          defaultSortOrder={addingSizeNextSortOrder}
           onClose={() => { setAddingSizeToMealId(null); setAddingSizeIngredients([]); }}
           onSave={handleSaveExistingMealSize}
         />
@@ -419,54 +454,45 @@ export default function MenuManagementPage() {
                             <div className="w-14 h-14 rounded-lg bg-cream-card flex items-center justify-center flex-shrink-0 text-lg">🍽️</div>
                           )}
                           <div className="flex-1 min-w-0">
-                            <p className="text-xs font-semibold text-slyce-dark truncate">{meal.name}</p>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <p className="text-xs font-semibold text-slyce-dark truncate">{meal.name}</p>
+                              {meal.reviewed === false && (
+                                <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-orange-50 text-orange-500 border border-orange-200 flex-shrink-0">
+                                  Under Review
+                                </span>
+                              )}
+                            </div>
                             <p className="text-[10px] text-slyce-grey line-clamp-2 mt-0.5">{meal.description}</p>
-                            {(meal.sizes?.length ?? 0) > 0 ? (
-                              <p className="text-[10px] text-green-primary mt-1">
-                                {meal.sizes.length} size{meal.sizes.length > 1 ? "s" : ""} · from{" "}
-                                {meal.priceCurrency ?? "EGP"} {Math.min(...meal.sizes.map((s) => s.price))}
-                              </p>
-                            ) : meal.originalPrice != null ? (
-                              <p className="text-[10px] text-green-primary mt-1">
-                                {meal.discountedPrice != null && meal.discountedPrice < meal.originalPrice ? (
-                                  <>
-                                    {meal.priceCurrency ?? "EGP"} {meal.discountedPrice}{" "}
-                                    <span className="text-slyce-grey line-through">{meal.originalPrice}</span>
-                                  </>
-                                ) : (
-                                  <>
-                                    {meal.priceCurrency ?? "EGP"} {meal.originalPrice}
-                                  </>
-                                )}
-                                {meal.lowestCalorieOption != null && (
-                                  <span className="text-slyce-grey"> · {Math.round(meal.lowestCalorieOption)} cal</span>
-                                )}
-                              </p>
-                            ) : null}
+                            {/* Price and calories are shown per-size in the "Manage sizes" panel below */}
                           </div>
                           </div>
                           {/* ── Sizes manager: view existing sizes and delete them ── */}
-                          <div className="mt-2 border-t border-slyce-border/60 pt-2 flex items-center justify-between gap-2">
-                            <button
-                              onClick={() => toggleMealSizes(meal.id)}
-                              className="flex items-center gap-1 text-[10px] font-semibold text-slyce-grey hover:text-green-primary transition-colors"
-                            >
-                              <ChevronDown
-                                size={11}
-                                className={`transition-transform ${expandedMeal === meal.id ? "rotate-180" : ""}`}
-                              />
-                              Manage sizes
-                            </button>
-                            <button
-                              onClick={() => handleOpenAddSizeForMeal(meal.id)}
-                              disabled={loadingMealForSize === meal.id}
-                              className="flex items-center gap-1 text-[10px] font-semibold text-green-primary hover:text-green-700 transition-colors disabled:opacity-50"
-                            >
-                              {loadingMealForSize === meal.id
-                                ? <Loader2 size={10} className="animate-spin" />
-                                : <Plus size={10} />}
-                              Add Size
-                            </button>
+                          <div className="mt-2 border-t border-slyce-border/60 pt-2">
+                            <div className="flex items-center justify-between gap-2">
+                              <button
+                                onClick={() => toggleMealSizes(meal.id)}
+                                className="flex items-center gap-1 text-[10px] font-semibold text-slyce-grey hover:text-green-primary transition-colors"
+                              >
+                                <ChevronDown
+                                  size={11}
+                                  className={`transition-transform ${expandedMeal === meal.id ? "rotate-180" : ""}`}
+                                />
+                                Manage sizes
+                                {meal.lowestCalorieOption != null && (
+                                  <span className="text-slyce-grey font-normal">· {Math.round(meal.lowestCalorieOption)} cal</span>
+                                )}
+                              </button>
+                              <button
+                                onClick={() => handleOpenAddSizeForMeal(meal.id)}
+                                disabled={loadingMealForSize === meal.id}
+                                className="flex items-center gap-1 text-[10px] font-semibold text-green-primary hover:text-green-700 transition-colors disabled:opacity-50"
+                              >
+                                {loadingMealForSize === meal.id
+                                  ? <Loader2 size={10} className="animate-spin" />
+                                  : <Plus size={10} />}
+                                Add Size
+                              </button>
+                            </div>
                             {expandedMeal === meal.id && (
                               <div className="mt-2 space-y-1.5">
                                 {sizeError && <p className="text-[10px] text-red-600">{sizeError}</p>}
@@ -480,13 +506,17 @@ export default function MenuManagementPage() {
                                   mealSizes[meal.id].map((sz) => (
                                     <div key={sz.id} className="flex items-center justify-between gap-2 bg-white rounded-lg border border-slyce-border px-2 py-1">
                                       <span className="text-[10px] text-slyce-dark truncate">
-                                        {sz.name} · {meal.priceCurrency ?? "EGP"} {sz.price}
+                                        {sz.name}
+                                        <span className="text-green-primary"> · {meal.priceCurrency ?? "EGP"} {sz.price}</span>
+                                        {sz.calories != null && sz.calories > 0 && (
+                                          <span className="text-slyce-grey"> · {Math.round(sz.calories)} cal</span>
+                                        )}
                                       </span>
                                       <button
                                         onClick={() => handleDeleteSize(meal.id, sz.id)}
-                                        disabled={deletingSize === sz.id}
-                                        className="flex-shrink-0 text-red-500 hover:text-red-600 disabled:opacity-50"
-                                        title="Delete size"
+                                        disabled={deletingSize === sz.id || sz.id.startsWith("local_")}
+                                        className="flex-shrink-0 text-red-500 hover:text-red-600 disabled:opacity-30"
+                                        title={sz.id.startsWith("local_") ? "Delete not available for locally cached sizes" : "Delete size"}
                                       >
                                         {deletingSize === sz.id ? <Loader2 size={11} className="animate-spin" /> : <Trash2 size={11} />}
                                       </button>
@@ -512,8 +542,25 @@ export default function MenuManagementPage() {
 
             {/* Image preview */}
             <div className="relative bg-cream-card h-44 overflow-hidden">
-              {mealImage ? (
-                <img src={mealImage} alt="Meal" className="w-full h-full object-cover" />
+              {mealImage && !mealImage.startsWith("data:") ? (
+                <img src={mealImage} alt="Meal" className="w-full h-full object-cover"
+                  onError={(e) => {
+                    const el = e.currentTarget;
+                    el.style.display = "none";
+                    el.nextElementSibling?.classList.remove("hidden");
+                  }}
+                />
+              ) : null}
+              {mealImage && !mealImage.startsWith("data:") ? (
+                <div className="hidden w-full h-full absolute inset-0 flex flex-col items-center justify-center gap-2 bg-cream-card px-4 text-center">
+                  <span className="text-xs text-red-500 font-medium">URL is not a direct image link</span>
+                  <span className="text-[10px] text-slyce-grey">Right-click an image → "Copy image address"</span>
+                </div>
+              ) : mealImage?.startsWith("data:") ? (
+                <div className="w-full h-full flex flex-col items-center justify-center gap-2 px-4 text-center">
+                  <span className="text-xs text-red-500 font-medium">Invalid image — paste a URL, not a file</span>
+                  <button onClick={() => setMealImage(null)} className="text-[10px] text-slyce-grey underline">Clear</button>
+                </div>
               ) : (
                 <div className="w-full h-full flex flex-col items-center justify-center gap-2">
                   <Upload size={22} className="text-slyce-grey" />

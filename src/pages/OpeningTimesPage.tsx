@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
-import { Clock, Save, Loader2, CheckCircle, AlertCircle, CalendarPlus } from "lucide-react";
+import { Clock, Save, Loader2, CheckCircle, AlertCircle, CalendarPlus, X, Plus } from "lucide-react";
 import MainLayout from "../components/layout/MainLayout";
 import BranchSwitcher from "../components/layout/BranchSwitcher";
 import { useAuth } from "../context/AuthContext";
-import { getBranchDetails, setWorkingHours } from "../api/branches";
+import { getBranchDetails, setWorkingHours, updateWorkingHours } from "../api/branches";
 
 const DAYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
 
@@ -22,16 +22,8 @@ interface DaySchedule {
   closingTime: string;
 }
 
-const blankSchedule = (): Record<string, DaySchedule> =>
-  Object.fromEntries(DAYS.map((d) => [d, { openingTime: "08:00", closingTime: "22:00" }]));
+const defaultHours = (): DaySchedule => ({ openingTime: "08:00", closingTime: "22:00" });
 
-/**
- * Tolerantly extract a weekly schedule out of the branch-details response.
- * GET /v1/branches/:id/details returns { ..., workingHours: [{ day, openTime,
- * closeTime }] }. We also accept schedule | openingHours and the
- * openingTime/closingTime casings. Returns null when no hours are present so the
- * page can show its "no working hours yet" empty state instead of fake defaults.
- */
 function parseSchedule(details: unknown): Record<string, DaySchedule> | null {
   const d = details as Record<string, unknown> | null;
   if (!d) return null;
@@ -54,17 +46,15 @@ function parseSchedule(details: unknown): Record<string, DaySchedule> | null {
 
 export default function OpeningTimesPage() {
   const { branchId, activeBranch } = useAuth();
-  const [schedule, setSchedule] = useState<Record<string, DaySchedule>>({});
-  const [loading, setLoading]   = useState(false);
-  const [hasHours, setHasHours] = useState(false);
-  const [editing, setEditing]   = useState(false);
-  const [saving, setSaving]     = useState(false);
-  const [success, setSuccess]   = useState(false);
-  const [error, setError]       = useState<string | null>(null);
+  const [schedule,    setSchedule]    = useState<Record<string, DaySchedule>>({});
+  const [activeDays,  setActiveDays]  = useState<Set<string>>(new Set());
+  const [loading,     setLoading]     = useState(false);
+  const [hasHours,    setHasHours]    = useState(false);
+  const [editing,     setEditing]     = useState(false);
+  const [saving,      setSaving]      = useState(false);
+  const [success,     setSuccess]     = useState(false);
+  const [error,       setError]       = useState<string | null>(null);
 
-  // Load the branch's real saved hours from GET /branches/:id/details.
-  // If the response has no schedule, we show a "no working hours set" state
-  // rather than inventing placeholder times.
   useEffect(() => {
     if (!branchId) return;
     let cancelled = false;
@@ -78,53 +68,70 @@ export default function OpeningTimesPage() {
         const parsed = parseSchedule(details);
         if (cancelled) return;
         setSchedule(parsed ?? {});
+        setActiveDays(new Set(parsed ? Object.keys(parsed) : []));
         setHasHours(!!parsed);
       } catch {
         if (!cancelled) {
           setSchedule({});
+          setActiveDays(new Set());
           setHasHours(false);
         }
       } finally {
         if (!cancelled) setLoading(false);
       }
     })();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [branchId]);
 
   function updateTime(day: string, field: "openingTime" | "closingTime", value: string) {
     setSchedule((prev) => ({
       ...prev,
-      [day]: { ...(prev[day] ?? { openingTime: "08:00", closingTime: "22:00" }), [field]: value },
+      [day]: { ...(prev[day] ?? defaultHours()), [field]: value },
     }));
   }
 
+  function removeDay(day: string) {
+    setActiveDays((prev) => { const next = new Set(prev); next.delete(day); return next; });
+  }
+
+  function addDay(day: string) {
+    if (!schedule[day]) {
+      setSchedule((prev) => ({ ...prev, [day]: defaultHours() }));
+    }
+    setActiveDays((prev) => new Set([...prev, day]));
+  }
+
   function startEditing() {
-    // Seed the editor with any existing hours, filling missing days with a default.
-    const seeded = blankSchedule();
+    const seeded: Record<string, DaySchedule> = {};
+    const days = new Set<string>();
     for (const day of DAYS) {
-      if (schedule[day]) seeded[day] = schedule[day];
+      if (schedule[day]) { seeded[day] = schedule[day]; days.add(day); }
+    }
+    // If no days at all, default to all days
+    if (days.size === 0) {
+      for (const day of DAYS) { seeded[day] = defaultHours(); days.add(day); }
     }
     setSchedule(seeded);
+    setActiveDays(days);
     setEditing(true);
   }
 
   async function handleSave() {
-    if (!branchId) {
-      setError("Select a branch above first.");
-      return;
-    }
+    if (!branchId) { setError("Select a branch above first."); return; }
     setError(null);
     setSaving(true);
     try {
-      const payload = DAYS.map((d) => ({
+      const payload = [...activeDays].map((d) => ({
         day: d,
         openingTime: (schedule[d]?.openingTime ?? "08:00") + ":00",
         closingTime: (schedule[d]?.closingTime ?? "22:00") + ":00",
       }));
-      await setWorkingHours(branchId, payload);
-      setHasHours(true);
+      if (hasHours) {
+        await updateWorkingHours(branchId, payload);
+      } else {
+        await setWorkingHours(branchId, payload);
+      }
+      setHasHours(activeDays.size > 0);
       setEditing(false);
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
@@ -135,6 +142,7 @@ export default function OpeningTimesPage() {
     }
   }
 
+  const removableDays = DAYS.filter((d) => !activeDays.has(d));
   const showEditor = editing || hasHours;
 
   return (
@@ -150,9 +158,7 @@ export default function OpeningTimesPage() {
         {!branchId ? (
           <div className="bg-white rounded-2xl p-8 text-center">
             <p className="text-sm font-medium text-slyce-dark">No branch selected</p>
-            <p className="text-xs text-slyce-grey mt-1">
-              Pick a branch above to set its working hours.
-            </p>
+            <p className="text-xs text-slyce-grey mt-1">Pick a branch above to set its working hours.</p>
           </div>
         ) : loading ? (
           <div className="bg-white rounded-2xl p-10 flex items-center justify-center gap-2 text-slyce-grey">
@@ -165,9 +171,7 @@ export default function OpeningTimesPage() {
               <Clock size={20} className="text-slyce-grey" />
             </div>
             <p className="text-sm font-medium text-slyce-dark">No working hours set</p>
-            <p className="text-xs text-slyce-grey mt-1 mb-4">
-              This branch doesn’t have any working hours yet. Set them first.
-            </p>
+            <p className="text-xs text-slyce-grey mt-1 mb-4">This branch doesn't have any working hours yet.</p>
             <button
               onClick={startEditing}
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-medium bg-green-primary text-white hover:opacity-90 transition-opacity"
@@ -190,14 +194,11 @@ export default function OpeningTimesPage() {
             </p>
 
             <div className="space-y-3">
-              {DAYS.map((day) => {
-                const s = schedule[day] ?? { openingTime: "08:00", closingTime: "22:00" };
+              {DAYS.filter((day) => activeDays.has(day)).map((day) => {
+                const s = schedule[day] ?? defaultHours();
                 return (
-                  <div
-                    key={day}
-                    className="flex items-center gap-4 p-3 rounded-xl border border-slyce-border"
-                  >
-                    <span className="text-sm font-medium text-slyce-dark w-28">
+                  <div key={day} className="flex items-center gap-3 p-3 rounded-xl border border-slyce-border">
+                    <span className="text-sm font-medium text-slyce-dark w-28 flex-shrink-0">
                       {DAY_LABELS[day]}
                     </span>
                     <div className="flex items-center gap-2 flex-1">
@@ -215,10 +216,33 @@ export default function OpeningTimesPage() {
                         className="text-sm border border-slyce-border rounded-lg px-2 py-1.5 bg-white text-slyce-dark"
                       />
                     </div>
+                    <button
+                      onClick={() => removeDay(day)}
+                      className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-red-50 text-slyce-grey hover:text-red-500 transition-colors flex-shrink-0"
+                      title="Remove this day"
+                    >
+                      <X size={14} />
+                    </button>
                   </div>
                 );
               })}
             </div>
+
+            {/* Add removed days back */}
+            {removableDays.length > 0 && (
+              <div className="mt-4 flex flex-wrap gap-2">
+                {removableDays.map((day) => (
+                  <button
+                    key={day}
+                    onClick={() => addDay(day)}
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-dashed border-slyce-border text-xs text-slyce-grey hover:border-green-primary hover:text-green-primary transition-colors"
+                  >
+                    <Plus size={11} />
+                    {DAY_LABELS[day]}
+                  </button>
+                ))}
+              </div>
+            )}
 
             {error && (
               <div className="mt-4 flex items-center gap-2 text-red-600 text-xs">

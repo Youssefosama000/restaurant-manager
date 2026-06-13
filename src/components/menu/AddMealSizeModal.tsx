@@ -17,12 +17,13 @@ interface Props {
   onClose: () => void;
   onSave: (size: MealSizeData) => void;
   existing?: MealSizeData;
+  defaultSortOrder?: number;
 }
 
-export default function AddMealSizeModal({ ingredients, onClose, onSave, existing }: Props) {
+export default function AddMealSizeModal({ ingredients, onClose, onSave, existing, defaultSortOrder }: Props) {
   const [name,      setName]      = useState(existing?.name ?? "");
   const [price,     setPrice]     = useState(existing?.price ?? "");
-  const [sortOrder, setSortOrder] = useState(existing?.sortOrder ?? "");
+  const [sortOrder, setSortOrder] = useState(existing?.sortOrder ?? (defaultSortOrder != null ? String(defaultSortOrder) : ""));
   const [quantities, setQuantities] = useState<Record<string, number>>(
     existing?.ingredientQuantities ?? Object.fromEntries(ingredients.map((i) => [i.id, 0]))
   );
@@ -116,7 +117,7 @@ export default function AddMealSizeModal({ ingredients, onClose, onSave, existin
                 return (
                   <div key={item.id} className="flex items-center gap-3 py-1">
                     <FoodImage name={item.name} imageUrl={item.imageUrl} className="w-9 h-9 rounded-xl flex-shrink-0" emojiSize="text-base" />
-                    <span className="text-xs text-slyce-dark flex-1 leading-snug">{item.name}</span>
+                    <span className="text-xs text-slyce-dark flex-1 leading-snug">{item.name || "Ingredient"}</span>
                     <div className="flex items-center gap-1 flex-shrink-0">
                       <input
                         type="number"
