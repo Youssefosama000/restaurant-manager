@@ -3,19 +3,10 @@ import { Loader2, RefreshCw } from "lucide-react";
 import MainLayout from "../components/layout/MainLayout";
 import BranchSwitcher from "../components/layout/BranchSwitcher";
 import { useAuth } from "../context/AuthContext";
-import {
-  getBranchOrders,
-  updateOrderStatus,
-  type Order,
-  type OrderStatus,
-} from "../api/orders";
+import { getBranchOrders, updateOrderStatus, type Order, type OrderStatus } from "../api/orders";
+import OrderDetailPanel from "../components/orders/OrderDetailPanel";
 
-const STATUS_OPTIONS: OrderStatus[] = [
-  "Pending",
-  "Preparing",
-  "OutForDelivery",
-  "Delivered",
-];
+const STATUS_OPTIONS: OrderStatus[] = ["Pending", "Preparing", "OutForDelivery", "Delivered"];
 
 const STATUS_STYLES: Record<OrderStatus, string> = {
   Pending:        "bg-yellow-50  text-yellow-700  border-yellow-200",
@@ -32,12 +23,13 @@ const STATUS_LABELS: Record<OrderStatus, string> = {
 };
 
 export default function OrderHistoryPage() {
-  const { branchId }              = useAuth();
-  const [orders, setOrders]       = useState<Order[]>([]);
-  const [loading, setLoading]     = useState(false);
+  const { branchId }                = useAuth();
+  const [orders, setOrders]         = useState<Order[]>([]);
+  const [loading, setLoading]       = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
-  const [error, setError]         = useState<string | null>(null);
+  const [error, setError]           = useState<string | null>(null);
   const [updateError, setUpdateError] = useState<string | null>(null);
+  const [selected, setSelected]     = useState<Order | null>(null);
 
   function fetchOrders() {
     if (!branchId) return;
@@ -56,9 +48,7 @@ export default function OrderHistoryPage() {
     setUpdateError(null);
     try {
       await updateOrderStatus(orderId, newStatus);
-      setOrders((prev) =>
-        prev.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o))
-      );
+      setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o)));
     } catch (err) {
       setUpdateError(err instanceof Error ? err.message : "Failed to update status");
     } finally {
@@ -66,18 +56,16 @@ export default function OrderHistoryPage() {
     }
   }
 
-  const formatDate = (o: Order) => {
-    const raw = o.createdAt ?? o.date as string | undefined;
+  const formatDate = (raw?: string) => {
     if (!raw) return "—";
     return new Date(raw).toLocaleDateString("en-GB", {
       day: "2-digit", month: "short", year: "numeric",
     });
   };
 
-  const formatAmount = (o: Order) => {
-    const val = o.totalAmount ?? o.total as number | undefined;
+  const formatAmount = (val?: number | null) => {
     if (val == null) return "—";
-    return `EGP ${Number(val).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+    return `EGP ${Number(val).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
   };
 
   return (
@@ -86,7 +74,7 @@ export default function OrderHistoryPage() {
         <div>
           <h1 className="text-xl font-bold text-slyce-dark">Order History</h1>
           <p className="text-xs text-slyce-grey mt-0.5 max-w-lg">
-            Track all branch orders in real time. Update status as orders progress.
+            Track all branch orders in real time. Click any row to view details.
           </p>
           <div className="mt-1.5">
             <BranchSwitcher />
@@ -102,24 +90,19 @@ export default function OrderHistoryPage() {
         </button>
       </div>
 
-      {/* Update error toast */}
       {updateError && (
         <div className="mb-4 px-4 py-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm">
           {updateError}
         </div>
       )}
 
-      {/* No branch ID */}
       {!branchId && (
         <div className="bg-white rounded-2xl p-10 text-center">
           <p className="text-sm font-medium text-slyce-dark">Branch ID not configured</p>
-          <p className="text-xs text-slyce-grey mt-1">
-            Select a branch above to load its orders.
-          </p>
+          <p className="text-xs text-slyce-grey mt-1">Select a branch above to load its orders.</p>
         </div>
       )}
 
-      {/* Loading */}
       {branchId && loading && (
         <div className="bg-white rounded-2xl p-10 flex items-center justify-center gap-2 text-slyce-grey">
           <Loader2 size={18} className="animate-spin" />
@@ -127,20 +110,15 @@ export default function OrderHistoryPage() {
         </div>
       )}
 
-      {/* Error */}
       {branchId && !loading && error && (
         <div className="bg-white rounded-2xl p-10 text-center">
           <p className="text-sm font-medium text-red-600">{error}</p>
-          <button onClick={fetchOrders} className="mt-3 text-xs text-green-primary hover:underline">
-            Try again
-          </button>
+          <button onClick={fetchOrders} className="mt-3 text-xs text-green-primary hover:underline">Try again</button>
         </div>
       )}
 
-      {/* Orders table */}
       {branchId && !loading && !error && (
         <div className="bg-white rounded-2xl overflow-hidden">
-          {/* Table header */}
           <div className="grid grid-cols-6 px-5 py-3 border-b border-slyce-border">
             {["Order ID", "Items", "Amount", "Date", "Status", "Update"].map((col) => (
               <span key={col} className="text-xs font-semibold text-slyce-grey">{col}</span>
@@ -155,42 +133,32 @@ export default function OrderHistoryPage() {
                 </svg>
               </div>
               <p className="text-sm font-medium text-slyce-dark">No orders yet</p>
-              <p className="text-xs text-slyce-grey mt-1">
-                Orders will appear here once customers start ordering.
-              </p>
+              <p className="text-xs text-slyce-grey mt-1">Orders will appear here once customers start ordering.</p>
             </div>
           ) : (
             <div className="divide-y divide-slyce-border">
               {orders.map((order) => {
                 const status = order.status as OrderStatus;
                 const isUpdating = updatingId === order.id;
+                const total = order.totalAmount ?? (order.total as number | undefined);
                 return (
-                  <div key={order.id} className="grid grid-cols-6 px-5 py-3 items-center hover:bg-cream/40 transition-colors">
-                    {/* Order ID */}
+                  <div
+                    key={order.id}
+                    onClick={() => setSelected(order)}
+                    className="grid grid-cols-6 px-5 py-3 items-center hover:bg-cream/40 transition-colors cursor-pointer"
+                  >
                     <span className="text-xs font-mono text-slyce-dark truncate pr-2" title={order.id}>
                       {order.id.slice(0, 8)}…
                     </span>
-
-                    {/* Items count */}
                     <span className="text-xs text-slyce-dark truncate pr-2">
-                      {order.orderItemsCount != null
-                        ? `${order.orderItemsCount} item${order.orderItemsCount === 1 ? "" : "s"}`
-                        : "—"}
+                      {order.orderItemsCount != null ? `${order.orderItemsCount} item${order.orderItemsCount === 1 ? "" : "s"}` : "—"}
                     </span>
-
-                    {/* Amount */}
-                    <span className="text-xs text-slyce-dark">{formatAmount(order)}</span>
-
-                    {/* Date */}
-                    <span className="text-xs text-slyce-grey">{formatDate(order)}</span>
-
-                    {/* Status badge */}
+                    <span className="text-xs text-slyce-dark">{formatAmount(total)}</span>
+                    <span className="text-xs text-slyce-grey">{formatDate(order.createdAt ?? (order.date as string | undefined))}</span>
                     <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full border w-fit ${STATUS_STYLES[status] ?? "bg-gray-50 text-gray-600 border-gray-200"}`}>
                       {STATUS_LABELS[status] ?? status}
                     </span>
-
-                    {/* Status update dropdown */}
-                    <div className="relative">
+                    <div className="relative" onClick={(e) => e.stopPropagation()}>
                       {isUpdating ? (
                         <Loader2 size={14} className="animate-spin text-slyce-grey" />
                       ) : (
@@ -211,6 +179,18 @@ export default function OrderHistoryPage() {
             </div>
           )}
         </div>
+      )}
+
+      {selected && branchId && (
+        <OrderDetailPanel
+          order={selected}
+          branchId={branchId}
+          onClose={() => setSelected(null)}
+          onStatusChange={(id, status) => {
+            setOrders((prev) => prev.map((o) => o.id === id ? { ...o, status } : o));
+            setSelected((prev) => prev?.id === id ? { ...prev, status } : prev);
+          }}
+        />
       )}
     </MainLayout>
   );

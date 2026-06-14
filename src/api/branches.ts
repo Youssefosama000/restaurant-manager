@@ -75,7 +75,23 @@ function normaliseBranches(res: unknown): Branch[] {
     .filter((b) => !!b.id);
 }
 
+// ─── MOCK FLAG — set to false when done with screenshots ─────────────────────
+const USE_MOCK = false;
+
+const MOCK_BRANCHES: Branch[] = [
+  { id: "br-mock-001", name: "Main Branch — Zamalek", city: "Cairo", area: "Zamalek", isActive: true },
+  { id: "br-mock-002", name: "Branch 2 — Maadi",      city: "Cairo", area: "Maadi",   isActive: true },
+];
+// ─────────────────────────────────────────────────────────────────────────────
+
 export async function getBranches(): Promise<Branch[]> {
+  if (USE_MOCK) return MOCK_BRANCHES;
   const res = await api.get("/v1/branches/dropdown", { withRestaurantId: true });
+  return normaliseBranches(res);
+}
+
+/** GET /v1/restaurants/:id/branches — richer branch data including accurate isActive */
+export async function getRestaurantBranches(restaurantId: string): Promise<Branch[]> {
+  const res = await api.get(`/v1/restaurants/${restaurantId}/branches`, { withRestaurantId: false });
   return normaliseBranches(res);
 }

@@ -1,15 +1,36 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Plus, MapPin, CheckCircle, Store, Loader2 } from "lucide-react";
 import MainLayout from "../components/layout/MainLayout";
 import AddBranchModal from "../components/branches/AddBranchModal";
 import { useAuth } from "../context/AuthContext";
+import { getRestaurantBranches, type Branch } from "../api/branches";
 
 export default function BranchesPage() {
-  const { branches, branchesLoading, branchesError, refreshBranches } = useAuth();
-  const [showModal, setShowModal] = useState(false);
+  const { restaurantId, refreshBranches } = useAuth();
+  const [branches, setBranches]     = useState<Branch[]>([]);
+  const [loading, setLoading]       = useState(false);
+  const [error, setError]           = useState<string | null>(null);
+  const [showModal, setShowModal]   = useState(false);
+
+  const loadBranches = useCallback(async () => {
+    if (!restaurantId) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const list = await getRestaurantBranches(restaurantId);
+      setBranches(list);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load branches");
+    } finally {
+      setLoading(false);
+    }
+  }, [restaurantId]);
+
+  useEffect(() => { void loadBranches(); }, [loadBranches]);
 
   async function handleBranchAdded() {
     await refreshBranches();
+    await loadBranches();
   }
 
   return (
@@ -28,14 +49,14 @@ export default function BranchesPage() {
         </button>
       </div>
 
-      {branchesLoading && (
+      {loading && (
         <div className="flex items-center gap-2 text-sm text-slyce-grey py-12 justify-center">
           <Loader2 size={16} className="animate-spin" />
           Loading branches…
         </div>
       )}
 
-      {!branchesLoading && (branches.length === 0 || branchesError) && (
+      {!loading && (branches.length === 0 || error) && (
         <div className="flex flex-col items-center justify-center py-16 text-center">
           <div className="w-14 h-14 rounded-2xl bg-cream flex items-center justify-center mb-4">
             <Store size={24} className="text-slyce-grey" />
@@ -52,7 +73,7 @@ export default function BranchesPage() {
         </div>
       )}
 
-      {!branchesLoading && branches.length > 0 && (
+      {!loading && branches.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {branches.map((branch) => (
             <div
